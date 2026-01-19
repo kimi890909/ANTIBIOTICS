@@ -1,0 +1,993 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>義大醫療體系抗生素使用智能決策系統 V01</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
+    
+    <!-- Fonts: Noto Sans TC (內文), Noto Serif TC (標題), Ma Shan Zheng (書法點綴/行書) -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Serif+TC:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+        
+        :root {
+            --color-ink-primary: #1E4C7C;   /* 石青 */
+            --color-ink-secondary: #2A7E68; /* 孔雀綠 */
+            --color-ink-accent: #B5493D;    /* 硃砂 */
+            --color-ink-dark: #2C3E50;      /* 濃墨 */
+            --color-paper: #F4F1EA;         /* 宣紙 */
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(255, 255, 255, 0.4);
+        }
+
+        body { 
+            font-family: 'Noto Sans TC', sans-serif; 
+            background-color: var(--color-paper);
+            color: var(--color-ink-dark);
+            -webkit-tap-highlight-color: transparent;
+            /* 宣紙紋理 */
+            background-image: url("data:image/svg+xml,%3Csvg width='200' height='200' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+            overflow-x: hidden;
+        }
+
+        /* 標題與襯線體設定 */
+        h1, h2, h3, .serif-font {
+            font-family: 'Noto Serif TC', serif;
+        }
+        .calligraphy-font {
+            font-family: 'Ma Shan Zheng', cursive;
+        }
+        .en-serif {
+            font-family: 'Playfair Display', serif;
+        }
+
+        /* 行書字體設定 (Ma Shan Zheng) */
+        .xingshu-font {
+            font-family: 'Ma Shan Zheng', cursive, serif;
+        }
+        
+        /* --- 背景山水與潑墨層 (Landscape & Ink Layers) --- */
+        .landscape-layer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            z-index: -1;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        
+        .ink-splash {
+            position: fixed;
+            z-index: -2;
+            pointer-events: none;
+            filter: blur(50px);
+            opacity: 0.15;
+            mix-blend-mode: multiply;
+        }
+        
+        /* 遠山淡影 */
+        .mountain-silhouette {
+            fill: url(#mountain-gradient);
+            filter: drop-shadow(0 -10px 20px rgba(30, 76, 124, 0.1));
+        }
+
+        .splash-top-right {
+            top: -10%; right: -10%; width: 70vw; height: 70vw;
+            background: radial-gradient(circle, var(--color-ink-primary) 0%, transparent 70%);
+            animation: pulse-ink 10s infinite alternate;
+        }
+        
+        .splash-bottom-left {
+            bottom: -5%; left: -10%; width: 60vw; height: 60vw;
+            background: radial-gradient(circle, var(--color-ink-secondary) 0%, transparent 70%);
+            animation: pulse-ink 12s infinite alternate-reverse;
+        }
+
+        @keyframes pulse-ink {
+            0% { transform: scale(1); opacity: 0.12; }
+            100% { transform: scale(1.1); opacity: 0.18; }
+        }
+
+        /* Custom Scrollbar - Ink Brush Style */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #8894A0; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-primary); }
+
+        /* 卡片玻璃擬態 (Glassmorphism for Ink Style) */
+        .ink-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+        }
+        .ink-card:hover {
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.12);
+            border-color: rgba(30, 76, 124, 0.2);
+        }
+
+        /* 輸入框樣式 */
+        input, select { 
+            background-color: rgba(255,255,255,0.6) !important;
+            border: 1px solid #D1D5DB !important;
+            font-family: 'Noto Sans TC', sans-serif !important;
+        }
+        input:focus, select:focus {
+            border-color: var(--color-ink-primary) !important;
+            background-color: #FFF !important;
+            box-shadow: 0 0 0 3px rgba(30, 76, 124, 0.1) !important;
+        }
+
+        /* 按鈕樣式 - 仿印章質感 */
+        .btn-ink {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #1E4C7C 0%, #15385e 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(30, 76, 124, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(30, 76, 124, 0.4);
+        }
+        .btn-primary::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(255,255,255,0.1), transparent);
+            pointer-events: none;
+        }
+
+        /* 分頁按鈕 */
+        .tab-btn { transition: all 0.3s ease; }
+        .tab-active { 
+            color: var(--color-ink-primary);
+            font-weight: 700;
+            background: rgba(30, 76, 124, 0.05);
+            border-bottom: 3px solid var(--color-ink-primary);
+        }
+        .tab-inactive { 
+            color: #888;
+            background: transparent;
+            border-bottom: 3px solid transparent;
+        }
+        .tab-inactive:hover { color: #555; background: rgba(0,0,0,0.02); }
+
+        /* Loader */
+        .loader {
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top: 2px solid #fff;
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* 結果卡片動畫 */
+        .result-card { animation: fadeUp 0.6s ease-out forwards; opacity: 0; transform: translateY(10px); }
+        @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-[#1E4C7C] selection:text-white relative">
+
+    <!-- 背景圖層：潑墨與山水 (Background Layers) -->
+    <div class="ink-splash splash-top-right"></div>
+    <div class="ink-splash splash-bottom-left"></div>
+    
+    <!-- SVG 山巒剪影 (Mountain Silhouette) -->
+    <svg class="landscape-layer" viewBox="0 0 1440 320" preserveAspectRatio="none">
+        <defs>
+            <linearGradient id="mountain-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:var(--color-ink-primary); stop-opacity:0.05" />
+                <stop offset="100%" style="stop-color:var(--color-ink-primary); stop-opacity:0.25" />
+            </linearGradient>
+        </defs>
+        <path class="mountain-silhouette" d="M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,250.7C960,235,1056,181,1152,165.3C1248,149,1344,171,1392,181.3L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+        <!-- 第二層淡山 -->
+        <path fill="rgba(42, 126, 104, 0.05)" d="M0,256L60,240C120,224,240,192,360,192C480,192,600,224,720,240C840,256,960,256,1080,234.7C1200,213,1320,171,1380,149.3L1440,128L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
+    </svg>
+
+    <!-- Header -->
+    <header class="sticky top-0 z-50 backdrop-blur-md bg-white/70 border-b border-gray-200/50 shadow-sm">
+        <div class="container mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <!-- 雲霧山峰意象圖示 (Mountain & Clouds Icon) -->
+                <div class="bg-gradient-to-br from-[#1E4C7C] to-[#15385e] p-2.5 rounded-lg shadow-lg text-white">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
+                        <!-- Background Peaks -->
+                        <path d="M8 3l4 8 5-5 5 15H2L8 3z" />
+                        <!-- Cloud/Mist Layer -->
+                        <path d="M4 20h16" />
+                        <path d="M6 16c1-1 2-1 4 0s3 2 5 0 2-2 3-1" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-wide leading-tight serif-font text-[#1E4C7C]">義大醫療體系抗生素智能決策系統</h1>
+                    <p class="text-[11px] text-[#64748B] font-light tracking-widest en-serif mt-0.5">E-Da AI-Powered Antibiotic Prescribing System</p>
+                </div>
+            </div>
+            <div class="flex flex-col items-end">
+                <div id="db-status" class="flex items-center gap-2 text-xs bg-[#1E4C7C]/10 px-3 py-1.5 rounded-full border border-[#1E4C7C]/20 backdrop-blur-sm">
+                    <span class="loader border-[#1E4C7C]/30 border-t-[#1E4C7C]"></span>
+                    <span class="text-[#1E4C7C] font-medium">連線中...</span>
+                </div>
+            </div>
+        </div>
+        <!-- 裝飾線條：模擬筆墨橫批 -->
+        <div class="h-[2px] w-full bg-gradient-to-r from-transparent via-[#1E4C7C] to-transparent opacity-30"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-4 md:p-8 flex-grow max-w-7xl relative z-10">
+        
+        <!-- Navigation Tabs -->
+        <div class="flex rounded-xl shadow-sm mb-8 overflow-hidden border border-gray-200 bg-white/80 backdrop-blur-sm max-w-3xl mx-auto">
+            <button onclick="app.switchTab('query')" id="tab-query" class="tab-btn flex-1 py-4 text-center tab-active">
+                <div class="flex items-center justify-center gap-2">
+                    <i data-lucide="search" class="w-5 h-5"></i>
+                    <span class="text-base tracking-wide serif-font">劑量查詢</span>
+                </div>
+            </button>
+            <button onclick="app.switchTab('check')" id="tab-check" class="tab-btn flex-1 py-4 text-center tab-inactive">
+                <div class="flex items-center justify-center gap-2">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                    <span class="text-base tracking-wide serif-font">處方檢核</span>
+                </div>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- Left Column: Patient Data -->
+            <div class="lg:col-span-4 space-y-6 lg:sticky lg:top-28">
+                
+                <!-- Patient Profile Card -->
+                <div class="ink-card overflow-hidden group">
+                    <div class="bg-gradient-to-r from-[#FAFAF8] to-transparent px-6 py-4 border-b border-gray-100 flex items-center justify-between relative">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-[#1E4C7C]"></div>
+                        <h2 class="font-bold text-[#2C3E50] flex items-center gap-2 text-lg serif-font">
+                            <i data-lucide="user-circle" class="w-5 h-5 text-[#1E4C7C]"></i>
+                            病人參數
+                        </h2>
+                        <button onclick="app.resetForm()" class="text-xs text-gray-400 hover:text-[#B5493D] transition flex items-center gap-1 font-medium px-2 py-1 rounded hover:bg-[#B5493D]/5">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> 重置
+                        </button>
+                    </div>
+                    
+                    <div class="p-6 space-y-5">
+                        <div class="grid grid-cols-2 gap-5">
+                            <div class="group/input">
+                                <label class="block text-xs font-bold text-gray-500 mb-1.5 serif-font">性別</label>
+                                <div class="relative">
+                                    <select id="p-sex" class="w-full rounded-lg p-2.5 text-sm outline-none transition appearance-none text-gray-700" onchange="app.calculateMetrics()">
+                                        <option value="M">男性 (Male)</option>
+                                        <option value="F">女性 (Female)</option>
+                                    </select>
+                                    <i data-lucide="chevron-down" class="absolute right-3 top-3 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                                </div>
+                            </div>
+                            <div class="group/input">
+                                <label class="block text-xs font-bold text-gray-500 mb-1.5 serif-font">年齡</label>
+                                <input type="number" id="p-age" min="0" max="150" class="w-full rounded-lg p-2.5 text-sm outline-none transition text-gray-700 placeholder-gray-300" placeholder="Age" oninput="app.calculateMetrics()">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-5">
+                            <div class="group/input">
+                                <label class="block text-xs font-bold text-gray-500 mb-1.5 serif-font">身高 (cm)</label>
+                                <input type="number" id="p-ht" min="0" class="w-full rounded-lg p-2.5 text-sm outline-none transition text-gray-700 placeholder-gray-300" placeholder="cm" oninput="app.calculateMetrics()">
+                            </div>
+                            <div class="group/input">
+                                <label class="block text-xs font-bold text-gray-500 mb-1.5 serif-font">體重 (kg)</label>
+                                <input type="number" id="p-wt" min="0" class="w-full rounded-lg p-2.5 text-sm outline-none transition text-gray-700 placeholder-gray-300" placeholder="kg" oninput="app.calculateMetrics()">
+                            </div>
+                        </div>
+
+                        <div class="group/input">
+                            <label class="block text-xs font-bold text-gray-500 mb-1.5 serif-font">血清肌酸酐 (SCr)</label>
+                            <div class="relative">
+                                <input type="number" id="p-scr" step="0.01" min="0.1" class="w-full rounded-lg p-2.5 text-sm outline-none transition pl-3 pr-12 text-gray-700 placeholder-gray-300" placeholder="mg/dL" oninput="app.calculateMetrics()">
+                                <span class="absolute right-3 top-2.5 text-xs text-gray-400 font-serif">mg/dL</span>
+                            </div>
+                        </div>
+
+                        <!-- Results Panel -->
+                        <div id="metrics-panel" class="hidden bg-[#F0F7FF]/60 rounded-xl border border-[#D0E3F5]/60 p-5 space-y-3 relative overflow-hidden transition-all duration-300 backdrop-blur-sm">
+                            <div class="flex justify-between items-end pb-3 border-b border-[#D0E3F5]/50 relative z-10">
+                                <span class="text-xs text-[#1E4C7C] font-bold tracking-wide serif-font">eGFR 結果</span>
+                                <span id="disp-ccr" class="text-2xl font-bold text-[#1E4C7C] serif-font">--</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-y-3 gap-x-2 text-xs pt-1 relative z-10">
+                                <div><span class="text-gray-500 block mb-0.5">BMI</span><span id="disp-bmi" class="font-bold text-gray-800">--</span></div>
+                                <div><span class="text-gray-500 block mb-0.5">IBW</span><span id="disp-ibw" class="font-bold text-gray-800">--</span></div>
+                                <div><span class="text-gray-500 block mb-0.5">AdjBW</span><span id="disp-adjbw" class="font-bold text-gray-800">--</span></div>
+                                <div><span class="text-gray-500 block mb-0.5">計算體重</span><span id="disp-weight-type" class="font-bold text-[#B5493D] truncate">--</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scenario Card -->
+                <div class="ink-card overflow-hidden">
+                    <div class="bg-gradient-to-r from-[#FAFAF8] to-transparent px-6 py-4 border-b border-gray-100 relative">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-[#B5493D]"></div>
+                        <h2 class="font-bold text-[#2C3E50] flex items-center gap-2 text-lg serif-font">
+                            <i data-lucide="settings-2" class="w-5 h-5 text-[#B5493D]"></i>
+                            情境設定
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <label class="flex items-center justify-between p-3.5 bg-white/60 border border-gray-200 rounded-xl cursor-pointer hover:border-[#B5493D]/30 transition mb-5 group">
+                            <div class="flex items-center gap-3">
+                                <div class="bg-[#FFF5F5] p-2 rounded-lg text-[#B5493D]">
+                                    <i data-lucide="zap" class="w-4 h-4"></i>
+                                </div>
+                                <span class="text-sm font-bold text-gray-600 group-hover:text-[#B5493D] transition serif-font">Loading Dose (起始劑量)</span>
+                            </div>
+                            <div class="relative inline-block w-11 h-6 align-middle select-none">
+                                <input type="checkbox" id="is-loading-dose" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-gray-300 left-0.5 top-0.5 checked:right-0.5 checked:left-auto transition-all"/>
+                                <label for="is-loading-dose" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-200 cursor-pointer"></label>
+                            </div>
+                        </label>
+                        <style>
+                            #is-loading-dose:checked { border-color: #B5493D; }
+                            #is-loading-dose:checked + label { background-color: #B5493D; }
+                        </style>
+
+                        <label class="block text-xs font-bold text-gray-500 mb-3 serif-font">腎臟替代療法 (RRT)</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="cursor-pointer relative group">
+                                <input type="radio" name="dialysis" value="None" checked class="peer sr-only">
+                                <div class="p-2.5 text-center text-sm rounded-lg border border-gray-200 text-gray-500 bg-white/50 peer-checked:bg-[#2C3E50] peer-checked:text-white peer-checked:border-[#2C3E50] transition serif-font">無</div>
+                            </label>
+                            <label class="cursor-pointer relative group">
+                                <input type="radio" name="dialysis" value="HD" class="peer sr-only">
+                                <div class="p-2.5 text-center text-sm rounded-lg border border-gray-200 text-gray-500 bg-white/50 peer-checked:bg-[#2C3E50] peer-checked:text-white peer-checked:border-[#2C3E50] transition serif-font">HD</div>
+                            </label>
+                            <label class="cursor-pointer relative group">
+                                <input type="radio" name="dialysis" value="CVVH" class="peer sr-only">
+                                <div class="p-2.5 text-center text-sm rounded-lg border border-gray-200 text-gray-500 bg-white/50 peer-checked:bg-[#2C3E50] peer-checked:text-white peer-checked:border-[#2C3E50] transition serif-font">CVVH</div>
+                            </label>
+                            <label class="cursor-pointer relative group">
+                                <input type="radio" name="dialysis" value="PD" class="peer sr-only">
+                                <div class="p-2.5 text-center text-sm rounded-lg border border-gray-200 text-gray-500 bg-white/50 peer-checked:bg-[#2C3E50] peer-checked:text-white peer-checked:border-[#2C3E50] transition serif-font">PD</div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="lg:col-span-8 space-y-8">
+                
+                <!-- Drug Selector -->
+                <div class="ink-card p-6 md:p-8 relative overflow-hidden border-t-4 border-t-[#1E4C7C]">
+                    <!-- Background ink mark -->
+                    <div class="absolute -right-10 -top-10 w-40 h-40 bg-[#1E4C7C] rounded-full opacity-5 blur-3xl pointer-events-none"></div>
+
+                    <label class="block text-sm font-bold text-[#2C3E50] mb-3 flex justify-between items-center relative z-10 serif-font">
+                        <span class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-[#1E4C7C]"></span>
+                            選擇抗生素 (Antibiotics)
+                        </span>
+                        <span id="drug-count" class="text-xs font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 serif-font">Loading...</span>
+                    </label>
+                    <div class="relative group z-10">
+                        <select id="drug-select" class="w-full appearance-none bg-white/80 border-2 border-gray-200 hover:border-[#1E4C7C]/40 rounded-xl p-4 pr-10 text-base font-medium text-gray-800 focus:border-[#1E4C7C] focus:outline-none transition shadow-sm font-sans cursor-pointer">
+                            <option value="">資料載入中...</option>
+                        </select>
+                        <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-400 group-hover:text-[#1E4C7C] transition">
+                            <i data-lucide="chevron-down" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Check Mode Inputs -->
+                <div id="check-inputs" class="hidden ink-card p-6 md:p-8 relative overflow-hidden bg-[#F0FDF4]/70 border-[#DCFCE7]">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-[#2A7E68]"></div>
+                    <div class="flex items-center gap-2 mb-6 text-[#166534]">
+                        <i data-lucide="edit-3" class="w-5 h-5"></i>
+                        <h3 class="font-bold serif-font text-lg">輸入目前處方進行比對</h3>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                        <div class="md:col-span-5">
+                            <label class="block text-xs font-bold text-[#15803d] mb-2 serif-font">單次劑量 (Dose)</label>
+                            <div class="relative">
+                                <input type="number" id="check-dose-val" class="w-full border border-[#86EFAC] rounded-lg p-3 pl-4 pr-10 text-sm focus:ring-2 focus:ring-[#2A7E68] outline-none bg-white/90" placeholder="1000">
+                                <span class="absolute right-3 top-3 text-xs text-[#15803d] font-bold">mg</span>
+                            </div>
+                        </div>
+                        <div class="md:col-span-4">
+                            <label class="block text-xs font-bold text-[#15803d] mb-2 serif-font">頻次 (Freq)</label>
+                            <select id="check-freq" class="w-full border border-[#86EFAC] rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#2A7E68] outline-none bg-white/90 cursor-pointer">
+                                <option value="QD">QD (每日1次)</option>
+                                <option value="Q12H">Q12H (每12小時)</option>
+                                <option value="Q8H">Q8H (每8小時)</option>
+                                <option value="Q6H">Q6H (每6小時)</option>
+                                <option value="Q48H">Q48H (每2天)</option>
+                                <option value="QOD">QOD (隔日)</option>
+                                <option value="TIW">TIW (每週3次)</option>
+                                <option value="STAT">STAT (單次)</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-3 flex items-end">
+                            <button onclick="app.performCheck()" class="w-full btn-ink bg-[#2A7E68] hover:bg-[#1f6150] text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 tracking-wide serif-font">
+                                <i data-lucide="check" class="w-4 h-4"></i> 檢核
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Query Button -->
+                <div id="query-actions">
+                    <button onclick="app.performQuery()" class="w-full btn-primary btn-ink py-4 px-6 rounded-xl text-lg tracking-wide serif-font flex justify-center items-center gap-2">
+                        <i data-lucide="search" class="w-5 h-5"></i>
+                        查詢建議劑量
+                    </button>
+                </div>
+
+                <!-- Results Area -->
+                <div id="results-area" class="space-y-5 min-h-[200px]">
+                    <div class="flex flex-col items-center justify-center h-56 text-gray-300 border-2 border-dashed border-gray-300/50 rounded-2xl bg-white/20">
+                        <i data-lucide="clipboard-list" class="w-12 h-12 mb-3 opacity-40"></i>
+                        <p class="text-sm font-medium tracking-widest text-gray-400 serif-font">等待查詢中...</p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="mt-12 border-t border-gray-200/50 pt-8 pb-4 px-4 text-center relative">
+                    <div class="text-[11px] text-gray-500 space-y-1 mb-6">
+                        <p>⚠️ 免責聲明：本系統僅供醫療專業人員輔助決策參考，不能取代臨床專業判斷。</p>
+                        <p>計算公式採用 Cockcroft-Gault Equation。</p>
+                    </div>
+                    
+                    <!-- 監製標籤 (Supervisor Label) -->
+                    <div class="inline-flex items-center gap-2 px-5 py-2 bg-white/50 rounded-full text-sm text-[#2C3E50] font-medium border border-gray-200/50 shadow-sm backdrop-blur-md">
+                        <i data-lucide="feather" class="w-4 h-4 text-[#1E4C7C]"></i>
+                        <span class="xingshu-font text-base tracking-wider">史一良藥師監製</span>
+                    </div>
+
+                    <!-- 版本資訊 (Version Info) -->
+                    <div class="mt-4 text-[10px] text-gray-400 font-sans tracking-widest opacity-60">
+                        Ver_01 • 2026.01.09
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+    </main>
+
+    <!-- Raw Data Fallback -->
+    <script id="csv-data" type="text/plain">
+DrugName,Category,CCR_Min,CCR_Max,Wt_Min,Wt_Max,Dose,Unit,Freq,Route,Remarks,Is_MgKg,Obese_Ref,NonObese_Ref
+Anidulafungin 100mg/vial,CCR,0,999,0,999,100,MG,QD,IVF,,N,實際體重,實際體重
+Anidulafungin 100mg/vial,HD,0,999,0,999,100,MG,QD,IVF,,N,實際體重,實際體重
+Anidulafungin 100mg/vial,CVVH,0,999,0,999,100,MG,QD,IVF,,N,實際體重,實際體重
+Anidulafungin 100mg/vial,PD,0,999,0,999,100,MG,QD,IVF,,N,實際體重,實際體重
+Anidulafungin 100mg/vial,Loading dose,0,999,0,999,200,MG,i,IVF,Initial 200mg single dose on day 1.,N,實際體重,實際體重
+Caspofungin 50mg/vial,CCR,0,999,0,999,50,MG,QD,IVF,,N,實際體重,實際體重
+Caspofungin 50mg/vial,HD,0,999,0,999,50,MG,QD,IVF,,N,實際體重,實際體重
+Caspofungin 50mg/vial,CVVH,0,999,0,999,50,MG,QD,IVF,,N,實際體重,實際體重
+Caspofungin 50mg/vial,PD,0,999,0,999,50,MG,QD,IVF,,N,實際體重,實際體重
+Caspofungin 50mg/vial,Loading dose,0,999,0,999,70,MG,i,IVF,Initial 70mg single dose on day 1.,N,實際體重,實際體重
+Cefepime 2g/vial,CCR,60,999,0,999,2000,MG,Q12H,IVD,,N,實際體重,實際體重
+Cefepime 2g/vial,CCR,60,999,0,999,2000,MG,Q8H,IVD,"For Pseudomonas aeruginosa OR septic shock OR neutropenic fever",N,實際體重,實際體重
+Cefepime 2g/vial,CCR,30,59,0,999,2000,MG,Q24H,IVD,,N,實際體重,實際體重
+Cefepime 2g/vial,CCR,11,29,0,999,1000,MG,Q24H,IVD,,N,實際體重,實際體重
+Cefepime 2g/vial,CCR,0,10,0,999,500,MG,Q24H,IVD,,N,實際體重,實際體重
+Cefepime 2g/vial,HD,0,999,0,999,1000,MG,Q24H,IVD,"On HD day: give dose after HD",N,實際體重,實際體重
+Cefepime 2g/vial,CVVH,0,999,0,999,2000,MG,Q12H,IVD,,N,實際體重,實際體重
+Cefepime 2g/vial,PD,0,999,0,999,1000,MG,Q48H,IVD,,N,實際體重,實際體重
+Colistin 2MIU/vial,Loading dose,0,999,0,999,300,MG,i,IVD,"Loading dose: 300mg (9 MIU) x 1. Based on CBA.",N,校正體重,校正體重
+Colistin 2MIU/vial,CCR,80,999,0,999,150,MG,Q12H,IVD,"Daily dose ~ 300mg (100-180mg q12h)",N,校正體重,校正體重
+Colistin 2MIU/vial,CCR,50,79,0,999,130,MG,Q12H,IVD,"Daily dose ~ 260mg",N,校正體重,校正體重
+Colistin 2MIU/vial,CCR,30,49,0,999,110,MG,Q12H,IVD,"Daily dose ~ 220mg",N,校正體重,校正體重
+Colistin 2MIU/vial,CCR,10,29,0,999,140,MG,Q24H,IVD,"Daily dose ~ 140mg",N,校正體重,校正體重
+Colistin 2MIU/vial,CCR,0,9,0,999,100,MG,Q24H,IVD,"Daily dose ~ 100mg",N,校正體重,校正體重
+Colistin 2MIU/vial,HD,0,999,0,999,130,MG,Q24H,IVD,"On HD day: give dose after HD. Or 40mg q12h.",N,校正體重,校正體重
+Colistin 2MIU/vial,CVVH,0,999,0,999,220,MG,Q12H,IVD,"Or 440mg QD",N,校正體重,校正體重
+Daptomycin 500mg/vial,CCR,30,999,0,999,4,MG,QD,IVF,"Skin/Soft tissue infection: 4 mg/kg q24h",Y,實際體重,實際體重
+Daptomycin 500mg/vial,CCR,30,999,0,999,6,MG,QD,IVF,"Bacteremia/Endocarditis: 6 mg/kg q24h",Y,實際體重,實際體重
+Daptomycin 500mg/vial,CCR,0,29,0,999,4,MG,Q48H,IVF,"Skin/Soft tissue: 4 mg/kg q48h",Y,實際體重,實際體重
+Daptomycin 500mg/vial,CCR,0,29,0,999,6,MG,Q48H,IVF,"Bacteremia: 6 mg/kg q48h",Y,實際體重,實際體重
+Daptomycin 500mg/vial,HD,0,999,0,999,6,MG,Q48H,IVF,"Give dose after HD",Y,實際體重,實際體重
+Teicoplanin 200mg/vial,Loading dose,0,999,0,999,6,MG,Q12H,IVF,"Initial 3 doses (q12h)",Y,校正體重,校正體重
+Teicoplanin 200mg/vial,CCR,50,999,0,999,6,MG,QD,IVF,"Maintenance",Y,校正體重,校正體重
+Teicoplanin 200mg/vial,CCR,20,49,0,999,3,MG,QD,IVF,"Maintenance (Or 6mg/kg Q2D)",Y,校正體重,校正體重
+Teicoplanin 200mg/vial,CCR,0,19,0,999,2,MG,QD,IVF,"Maintenance (Or 6mg/kg Q3D)",Y,校正體重,校正體重
+Teicoplanin 200mg/vial,HD,0,999,0,999,2,MG,QD,IVF,"Maintenance",Y,校正體重,校正體重
+Voriconazole 200mg/tab,Loading dose,0,999,0,40,200,MG,Q12H,PO,"Body weight < 40kg",N,實際體重,實際體重
+Voriconazole 200mg/tab,Loading dose,0,999,40,999,400,MG,Q12H,PO,"Body weight >= 40kg",N,實際體重,實際體重
+Voriconazole 200mg/tab,CCR,50,999,0,40,100,MG,Q12H,PO,"Maintenance, BW < 40kg",N,實際體重,實際體重
+Voriconazole 200mg/tab,CCR,50,999,40,999,200,MG,Q12H,PO,"Maintenance, BW >= 40kg",N,實際體重,實際體重
+Voriconazole 200mg/vial,CCR,50,999,0,999,4,MG,Q12H,IVF,"Maintenance dose",Y,實際體重,實際體重
+Vancomycin 1g/vial,CCR,90,999,0,999,1000,MG,Q12H,IVD,"Monitor Trough",N,實際體重,實際體重
+Vancomycin 1g/vial,CCR,50,89,0,999,1000,MG,Q24H,IVD,"Monitor Trough",N,實際體重,實際體重
+    </script>
+
+    <script>
+        /**
+         * E-DA Hospital Antibiotic Decision Support System V01
+         * Architecture: Simple Module Pattern
+         */
+        const app = (function() {
+            
+            // --- Configuration ---
+            const CONFIG = {
+                // Please replace with your Google Apps Script Web App URL
+                API_URL: "https://script.google.com/macros/s/AKfycbyIlj9JfsGuXMH6ogAONxX_kV_t66OhJMeqcmgwwVbLFi-OF-vvevQGOLLsF-1SKn9RiQ/exec" 
+            };
+
+            // --- State ---
+            let allDrugs = [];
+            let currentMetrics = null;
+
+            // --- UI Elements Cache ---
+            const els = {};
+
+            // --- Initialization ---
+            function init() {
+                // Cache elements by ID
+                document.querySelectorAll('[id]').forEach(el => els[el.id] = el);
+                
+                // Load Icons Safely
+                updateIcons();
+
+                // Load Data
+                fetchData();
+            }
+
+            // --- Helper to safely load icons ---
+            function updateIcons() {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons();
+                } else {
+                    console.warn("Lucide icons library not loaded yet.");
+                }
+            }
+
+            // --- Data Layer ---
+            async function fetchData() {
+                const statusBadge = els['db-status'];
+                
+                try {
+                    const response = await fetch(CONFIG.API_URL);
+                    if (!response.ok) throw new Error("Network Error");
+                    
+                    const jsonData = await response.json();
+                    allDrugs = normalizeData(jsonData);
+                    
+                    statusBadge.className = "flex items-center gap-2 text-xs bg-[#2A7E68]/10 text-[#2A7E68] px-3 py-1.5 rounded-full border border-[#2A7E68]/20 backdrop-blur-md";
+                    statusBadge.innerHTML = `<i data-lucide="cloud" class="w-3 h-3"></i> 雲端資料庫`;
+                    showToast("雲端資料已同步更新", "success");
+
+                } catch (error) {
+                    console.warn("Offline mode activated", error);
+                    const csvContent = els['csv-data'].textContent;
+                    allDrugs = parseCSV(csvContent);
+                    
+                    statusBadge.className = "flex items-center gap-2 text-xs bg-[#B5493D]/10 text-[#B5493D] px-3 py-1.5 rounded-full border border-[#B5493D]/20 backdrop-blur-md";
+                    statusBadge.innerHTML = `<i data-lucide="database" class="w-3 h-3"></i> 離線備援模式`;
+                    showToast("網路異常，已切換至離線備援模式", "warning");
+                } finally {
+                    updateDropdown();
+                    updateIcons(); // Safe call
+                }
+            }
+
+            function normalizeData(rawData) {
+                return rawData.map(row => ({
+                    ...row,
+                    CCR_Min: parseFloat(row.CCR_Min) || 0,
+                    CCR_Max: parseFloat(row.CCR_Max) || 999,
+                    Wt_Min: parseFloat(row.Wt_Min) || 0,
+                    Wt_Max: parseFloat(row.Wt_Max) || 999,
+                    Dose: parseFloat(row.Dose) || 0
+                }));
+            }
+
+            function parseCSV(csvText) {
+                const lines = csvText.trim().split('\n');
+                const headers = lines[0].split(',').map(h => h.trim());
+                const data = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    // Handle quoted strings in CSV
+                    const rowMatch = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+                    if (!rowMatch) continue;
+                    
+                    const rowValues = rowMatch.map(val => val.replace(/^"|"$/g, '').trim());
+                    if (rowValues.length < headers.length) continue; 
+
+                    const obj = {};
+                    headers.forEach((h, index) => {
+                        obj[h] = rowValues[index];
+                    });
+                    data.push(obj);
+                }
+                return normalizeData(data);
+            }
+
+            function updateDropdown() {
+                const select = els['drug-select'];
+                const count = els['drug-count'];
+                
+                select.innerHTML = '<option value="">-- 請選擇藥品 --</option>';
+                const uniqueNames = Array.from(new Set(allDrugs.map(d => d.DrugName))).sort();
+                
+                uniqueNames.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+                
+                count.textContent = `${uniqueNames.length} 項藥品`;
+            }
+
+            // --- Logic Layer (Clinical Calculations) ---
+            function calculateMetrics() {
+                const sex = els['p-sex'].value;
+                const age = parseFloat(els['p-age'].value);
+                const ht = parseFloat(els['p-ht'].value);
+                const wt = parseFloat(els['p-wt'].value);
+                const scr = parseFloat(els['p-scr'].value);
+
+                const panel = els['metrics-panel'];
+                
+                if (!age || !ht || !wt || !scr || age < 0 || ht < 0 || wt < 0 || scr <= 0) {
+                    panel.classList.add('hidden');
+                    currentMetrics = null;
+                    return;
+                }
+
+                panel.classList.remove('hidden');
+
+                // 1. BMI
+                const htM = ht / 100;
+                const bmi = wt / (htM * htM);
+                els['disp-bmi'].textContent = bmi.toFixed(1);
+
+                // 2. IBW
+                let htInch = ht / 2.54;
+                if (htInch < 60) htInch = 60; // Standard constraint, though some use raw
+                
+                let ibw = 0;
+                if (sex === 'M') {
+                    ibw = 50 + 2.3 * (htInch - 60);
+                } else {
+                    ibw = 45.5 + 2.3 * (htInch - 60);
+                }
+                els['disp-ibw'].textContent = ibw.toFixed(1) + " kg";
+
+                // 3. AdjBW
+                const adjbw = ibw + 0.4 * (wt - ibw);
+                els['disp-adjbw'].textContent = adjbw.toFixed(1) + " kg";
+
+                // 4. Determine Weight for CCR (Protocol Specific)
+                let ccrWeight = 0;
+                let weightLabel = "";
+                
+                if (bmi < 18.5) {
+                    ccrWeight = wt;
+                    weightLabel = "實際體重 (ActBW)";
+                } else if (bmi >= 18.5 && bmi < 25) {
+                    ccrWeight = ibw;
+                    weightLabel = "理想體重 (IBW)";
+                } else {
+                    ccrWeight = adjbw;
+                    weightLabel = "校正體重 (AdjBW)";
+                }
+
+                // 5. Cockcroft-Gault
+                let ccr = ((140 - age) * ccrWeight) / (72 * scr);
+                if (sex === 'F') ccr *= 0.85;
+
+                els['disp-ccr'].textContent = ccr.toFixed(1) + " ml/min";
+                els['disp-weight-type'].textContent = weightLabel;
+
+                currentMetrics = {
+                    bmi, abw: wt, ibw, adjbw, ccr,
+                    isObese: bmi >= 30 
+                };
+            }
+
+            function getRefWeight(row, metrics) {
+                // Fallback for logic safety
+                if (!metrics) return 0;
+
+                const refType = metrics.isObese ? row.Obese_Ref : row.NonObese_Ref;
+                
+                if (refType.includes("實際")) return metrics.abw;
+                if (refType.includes("理想")) return metrics.ibw;
+                if (refType.includes("校正")) return metrics.adjbw;
+                
+                return metrics.abw; 
+            }
+
+            // --- Action Layer ---
+            function resetForm() {
+                els['p-age'].value = '';
+                els['p-ht'].value = '';
+                els['p-wt'].value = '';
+                els['p-scr'].value = '';
+                els['metrics-panel'].classList.add('hidden');
+                els['results-area'].innerHTML = '<div class="flex flex-col items-center justify-center h-56 text-[#BBB] border-2 border-dashed border-[#E5E2D9] rounded-2xl bg-[#FAFAF8]/30"><i data-lucide="clipboard-list" class="w-12 h-12 mb-3 opacity-40"></i><p class="text-sm font-medium tracking-widest text-[#999] serif-font">資料已重置</p></div>';
+                currentMetrics = null;
+                updateIcons(); // Safe call
+            }
+
+            function performQuery() {
+                if (!validateInput()) return;
+
+                const drugName = els['drug-select'].value;
+                const isLoading = els['is-loading-dose'].checked;
+                const dialysis = document.querySelector('input[name="dialysis"]:checked').value;
+
+                let { results, logic } = engine(drugName, isLoading, dialysis, currentMetrics);
+                renderResults(results, logic, false);
+            }
+
+            function performCheck() {
+                if (!validateInput()) return;
+                
+                const drugName = els['drug-select'].value;
+                const doseVal = parseFloat(els['check-dose-val'].value);
+                
+                if (!doseVal) {
+                    showToast("請輸入單次劑量以進行檢核", "error");
+                    return;
+                }
+
+                const isLoading = els['is-loading-dose'].checked;
+                const dialysis = document.querySelector('input[name="dialysis"]:checked').value;
+                const freqVal = els['check-freq'].value;
+
+                let { results, logic } = engine(drugName, isLoading, dialysis, currentMetrics);
+                
+                renderResults(results, logic, true, { dose: doseVal, freq: freqVal });
+            }
+
+            // Core Logic Engine
+            function engine(drugName, isLoading, dialysis, metrics) {
+                let candidates = allDrugs.filter(d => d.DrugName === drugName);
+                let filtered = [];
+                let logic = "";
+
+                // Priority 1: Loading Dose
+                if (isLoading) {
+                    const loadingRows = candidates.filter(d => d.Category.toLowerCase().includes("loading"));
+                    if (loadingRows.length > 0) {
+                        filtered = loadingRows;
+                        logic = "Loading Dose";
+                    }
+                }
+
+                // Priority 2: Dialysis (if no loading dose found/selected)
+                if (filtered.length === 0 && dialysis !== "None") {
+                    const diaRows = candidates.filter(d => d.Category === dialysis);
+                    if (diaRows.length > 0) {
+                        filtered = diaRows;
+                        logic = `透析模式 (${dialysis})`;
+                    }
+                }
+
+                // Priority 3: General CCR
+                if (filtered.length === 0) {
+                    filtered = candidates.filter(d => {
+                        return d.Category === "CCR" && 
+                               metrics.ccr >= d.CCR_Min && 
+                               metrics.ccr < d.CCR_Max;
+                    });
+                    logic = `CCR 區間 (${metrics.ccr.toFixed(1)})`;
+                }
+
+                // Weight Filtering (For pediatrics or specific weight-based constraints)
+                let finalResults = filtered.filter(row => {
+                    const refWt = getRefWeight(row, metrics);
+                    return refWt >= row.Wt_Min && refWt < row.Wt_Max;
+                });
+
+                return { results: finalResults, logic };
+            }
+
+            function validateInput() {
+                if (!currentMetrics) {
+                    showToast("請先輸入完整的病人資料", "error");
+                    return false;
+                }
+                if (!els['drug-select'].value) {
+                    showToast("請選擇抗生素", "warning");
+                    return false;
+                }
+                return true;
+            }
+
+            function renderResults(rows, logic, isCheckMode, checkInput = null) {
+                const container = els['results-area'];
+                container.innerHTML = "";
+
+                if (rows.length === 0) {
+                    container.innerHTML = `
+                        <div class="bg-[#FEF2F2]/80 border border-[#FCA5A5] p-6 rounded-2xl flex items-start gap-4 backdrop-blur-sm">
+                            <div class="bg-[#FEE2E2] p-2 rounded-full text-[#B5493D] flex-shrink-0">
+                                <i data-lucide="alert-octagon" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-[#991B1B] font-bold text-lg mb-1 serif-font">查無符合建議</h3>
+                                <p class="text-[#B91C1C] text-sm">依據篩選邏輯：<span class="font-mono bg-white/50 px-1.5 py-0.5 rounded border border-[#FECACA] text-[#B5493D]">${logic}</span>，未找到對應資料。</p>
+                                <p class="text-[#B91C1C] text-xs mt-3 opacity-80">建議檢查病人數值是否超出一般範圍，或手動查閱仿單。</p>
+                            </div>
+                        </div>`;
+                    updateIcons(); // Safe call
+                    return;
+                }
+
+                rows.forEach(row => {
+                    const refWt = getRefWeight(row, currentMetrics);
+                    
+                    let calcDose = row.Dose;
+                    let doseDisplay = `<span class="text-3xl font-bold text-[#1E4C7C] serif-font">${row.Dose}</span> <span class="text-sm text-gray-500 font-medium">${row.Unit}</span>`;
+                    
+                    if (row.Is_MgKg === 'Y') {
+                        calcDose = row.Dose * refWt;
+                        doseDisplay = `
+                            <div class="flex flex-col">
+                                <span class="text-3xl font-bold text-[#1E4C7C] serif-font">${calcDose.toFixed(0)} <span class="text-base font-normal text-gray-500 font-sans">${row.Unit}</span></span>
+                                <span class="text-xs text-gray-400 mt-1">計算: ${row.Dose} mg/kg x ${refWt.toFixed(1)} kg</span>
+                            </div>`;
+                    }
+
+                    // Validation Logic UI
+                    let statusHeader = "";
+                    let cardBorder = "border-l-4 border-[#1E4C7C]";
+                    
+                    if (isCheckMode && checkInput) {
+                        const freqMatch = row.Freq.toUpperCase() === checkInput.freq.toUpperCase();
+                        const inputDose = checkInput.dose;
+                        // Allow 10% margin of error
+                        const isDoseMatch = Math.abs(inputDose - calcDose) < (calcDose * 0.1); 
+
+                        if (freqMatch && isDoseMatch) {
+                            cardBorder = "border-l-4 border-[#2A7E68] bg-[#F0FDF4]/60";
+                            statusHeader = `<div class="mb-4 inline-flex items-center gap-1.5 bg-[#DCFCE7] text-[#166534] px-3 py-1 rounded-full text-xs font-bold shadow-sm serif-font"><i data-lucide="check-circle" class="w-3.5 h-3.5"></i> 處方合理</div>`;
+                        } else {
+                            cardBorder = "border-l-4 border-[#F59E0B] bg-[#FFFBEB]/60";
+                            statusHeader = `<div class="mb-4 inline-flex items-center gap-1.5 bg-[#FEF3C7] text-[#92400E] px-3 py-1 rounded-full text-xs font-bold shadow-sm serif-font"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> 處方差異</div>`;
+                        }
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = `ink-card p-6 md:p-8 ${cardBorder} mb-6 relative overflow-hidden result-card`;
+                    
+                    card.innerHTML = `
+                        ${statusHeader}
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <h3 class="font-bold text-xl text-[#2C3E50] leading-tight serif-font tracking-wide">${row.DrugName}</h3>
+                                <div class="flex gap-2 mt-2">
+                                    <span class="bg-gray-100 text-gray-600 text-[10px] px-2.5 py-1 rounded uppercase tracking-wider font-bold border border-gray-200 serif-font">${row.Category}</span>
+                                    ${row.Route ? `<span class="bg-[#EFF6FF] text-[#1E4C7C] text-[10px] px-2.5 py-1 rounded uppercase tracking-wider font-bold border border-[#DBEAFE] serif-font">${row.Route}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-6 mb-6">
+                            <div class="bg-[#FAFAF8]/80 p-4 rounded-xl border border-[#EAE8E0] group hover:border-[#1E4C7C]/20 transition-colors">
+                                <span class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider serif-font">建議劑量 (Dose)</span>
+                                ${doseDisplay}
+                            </div>
+                            <div class="bg-[#FAFAF8]/80 p-4 rounded-xl border border-[#EAE8E0] group hover:border-[#1E4C7C]/20 transition-colors">
+                                <span class="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider serif-font">頻次 (Freq)</span>
+                                <span class="text-2xl font-bold text-[#2C3E50] serif-font">${row.Freq}</span>
+                            </div>
+                        </div>
+
+                        ${row.Remarks ? `
+                        <div class="flex gap-3 items-start bg-[#FFFBEB]/80 p-4 rounded-xl text-sm text-[#92400E] border border-[#FCD34D]/30 mb-4">
+                            <i data-lucide="info" class="w-5 h-5 mt-0.5 flex-shrink-0 text-[#F59E0B]"></i>
+                            <span class="leading-relaxed font-medium serif-font">${row.Remarks}</span>
+                        </div>` : ''}
+
+                        <div class="flex justify-between items-center pt-4 border-t border-gray-100 text-[11px] text-gray-400 serif-font">
+                            <span>計算基礎: ${currentMetrics.isObese ? row.Obese_Ref : row.NonObese_Ref} (${refWt.toFixed(1)}kg)</span>
+                            <span class="font-mono bg-gray-50 px-2 py-0.5 rounded border border-gray-100">Logic: ${logic}</span>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+                updateIcons(); // Safe call
+            }
+
+            // --- UI Utilities ---
+            function switchTab(tabName) {
+                const queryTab = els['tab-query'];
+                const checkTab = els['tab-check'];
+                const checkInputArea = els['check-inputs'];
+                const queryActionArea = els['query-actions'];
+                const resultsArea = els['results-area'];
+
+                // Reset Results
+                resultsArea.innerHTML = '<div class="flex flex-col items-center justify-center h-56 text-[#BBB] border-2 border-dashed border-[#E5E2D9] rounded-2xl bg-[#FAFAF8]/30"><i data-lucide="refresh-cw" class="w-12 h-12 mb-3 opacity-40"></i><p class="text-sm font-medium tracking-widest text-[#999] serif-font">模式已切換，請重新查詢</p></div>';
+                updateIcons(); // Safe call
+
+                if (tabName === 'query') {
+                    queryTab.className = "tab-btn flex-1 py-4 text-center tab-active";
+                    checkTab.className = "tab-btn flex-1 py-4 text-center tab-inactive";
+                    checkInputArea.classList.add('hidden');
+                    queryActionArea.classList.remove('hidden');
+                } else {
+                    checkTab.className = "tab-btn flex-1 py-4 text-center tab-active";
+                    queryTab.className = "tab-btn flex-1 py-4 text-center tab-inactive";
+                    checkInputArea.classList.remove('hidden');
+                    queryActionArea.classList.add('hidden');
+                }
+            }
+
+            function showToast(msg, type = 'info') {
+                const container = els['toast-container'];
+                const toast = document.createElement('div');
+                
+                const styles = {
+                    success: 'bg-[#2A7E68] text-white shadow-[#2A7E68]/30',
+                    error: 'bg-[#B5493D] text-white shadow-[#B5493D]/30',
+                    warning: 'bg-[#F59E0B] text-white shadow-[#F59E0B]/30',
+                    info: 'bg-[#1E4C7C] text-white shadow-[#1E4C7C]/30'
+                };
+                
+                const icons = {
+                    success: 'check-circle',
+                    error: 'x-circle',
+                    warning: 'alert-triangle',
+                    info: 'info'
+                };
+
+                toast.className = `${styles[type]} shadow-xl px-5 py-3.5 rounded-xl flex items-center gap-3 text-sm font-medium transform transition-all duration-300 translate-y-10 opacity-0 border border-white/10 backdrop-blur-md serif-font`;
+                toast.innerHTML = `<i data-lucide="${icons[type]}" class="w-5 h-5"></i> ${msg}`;
+                
+                container.appendChild(toast);
+                updateIcons(); // Safe call
+
+                // Animate In
+                requestAnimationFrame(() => {
+                    toast.classList.remove('translate-y-10', 'opacity-0');
+                });
+
+                // Auto Dismiss
+                setTimeout(() => {
+                    toast.classList.add('translate-y-10', 'opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+
+            // Expose Public Methods
+            return {
+                init,
+                calculateMetrics,
+                performQuery,
+                performCheck,
+                switchTab,
+                resetForm
+            };
+
+        })();
+
+        // Start App
+        window.addEventListener('DOMContentLoaded', app.init);
+    </script>
+</body>
+</html>
